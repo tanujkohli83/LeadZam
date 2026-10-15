@@ -1,11 +1,9 @@
 package com.example.leadzam
 
 import android.Manifest
-import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
@@ -58,6 +56,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.leadzam.fcm.CallRequestManager
+import com.example.leadzam.fcm.CallRequestActionHandler
+import com.example.leadzam.fcm.DeviceIdentityStore
+import com.example.leadzam.fcm.DeviceRegistrationClient
 import com.example.leadzam.fcm.FcmTokenManager
 import com.example.leadzam.fcm.NotificationHelper
 import com.example.leadzam.fcm.ReceivedMessage
@@ -98,6 +99,7 @@ class MainActivity : ComponentActivity() {
             val contact = intent.getStringExtra("EXTRA_CONTACT_NAME")
             CallRequestManager.setActiveCallRequest(
                 CallRequest(
+                    requestId = intent.getStringExtra(CallRequestActionHandler.EXTRA_REQUEST_ID),
                     type = type,
                     phoneNumber = phone!!,
                     contactName = contact
@@ -117,6 +119,10 @@ fun FcmApp() {
     val tokenState by FcmTokenManager.tokenState.collectAsState()
     val latestMessage by FcmTokenManager.latestMessage.collectAsState()
     val activeCallRequest by CallRequestManager.activeCallRequest.collectAsState()
+    val initialDeviceProfile = remember { DeviceIdentityStore.load(context) }
+    var deviceName by remember { mutableStateOf(initialDeviceProfile.deviceName) }
+    var deviceNameInput by remember { mutableStateOf(initialDeviceProfile.deviceName) }
+    var registrationMessage by remember { mutableStateOf("Device registration pending") }
 
     var hasNotificationPermission by remember {
         mutableStateOf(
@@ -146,6 +152,18 @@ fun FcmApp() {
         FcmTokenManager.fetchToken()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission) {
             permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    LaunchedEffect(tokenState, deviceName) {
+        val token = (tokenState as? TokenUiState.Success)?.token ?: return@LaunchedEffect
+        registrationMessage = "Registering device…"
+        DeviceRegistrationClient.register(context, token) { registered ->
+            registrationMessage = if (registered) {
+                "Registered as $deviceName"
+            } else {
+                "Backend registration is unavailable"
+            }
         }
     }
 
@@ -182,17 +200,30 @@ fun FcmApp() {
             // Incoming Call Request Card (Phase 3)
             IncomingCallRequestCard(
                 callRequest = activeCallRequest,
-                onCall = { phoneNumber ->
-                    launchDialer(context, phoneNumber)
+                onCall = { callRequest ->
+                    CallRequestActionHandler.handleCall(context, callRequest)
                 },
-                onDismiss = {
-                    CallRequestManager.dismissCallRequest()
+                onDismiss = { callRequest ->
+                    CallRequestActionHandler.handleDismiss(context, callRequest)
                 }
             )
 
             // FCM Token Card (Phase 2)
             FcmTokenCard(
                 tokenState = tokenState,
+                deviceName = deviceName,
+                deviceNameInput = deviceNameInput,
+                registrationMessage = registrationMessage,
+                onDeviceNameChange = { deviceNameInput = it },
+                onSaveDeviceName = {
+                    val savedProfile = DeviceIdentityStore.saveName(context, deviceNameInput)
+                    if (savedProfile == null) {
+                        registrationMessage = "Device name must be between 1 and 80 characters"
+                    } else {
+                        deviceName = savedProfile.deviceName
+                        deviceNameInput = savedProfile.deviceName
+                    }
+                },
                 onCopyToken = { token ->
                     clipboardManager.setText(AnnotatedString(token))
                     Toast.makeText(context, "FCM Token copied to clipboard", Toast.LENGTH_SHORT).show()
@@ -216,8 +247,8 @@ fun FcmApp() {
 @Composable
 fun IncomingCallRequestCard(
     callRequest: CallRequest?,
-    onCall: (String) -> Unit,
-    onDismiss: () -> Unit
+    onCall: (CallRequest) -> Unit,
+    onDismiss: (CallRequest) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -291,7 +322,7 @@ fun IncomingCallRequestCard(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Button(
-                        onClick = { onCall(callRequest.phoneNumber) },
+                        onClick = { onCall(callRequest) },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary
@@ -301,7 +332,7 @@ fun IncomingCallRequestCard(
                     }
 
                     OutlinedButton(
-                        onClick = onDismiss,
+                        onClick = { onDismiss(callRequest) },
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Dismiss")
@@ -309,20 +340,6 @@ fun IncomingCallRequestCard(
                 }
             }
         }
-    }
-}
-
-fun launchDialer(context: Context, phoneNumber: String) {
-    val dialIntent = Intent(Intent.ACTION_DIAL).apply {
-        data = Uri.parse("tel:$phoneNumber")
-        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-    }
-    try {
-        context.startActivity(dialIntent)
-    } catch (_: ActivityNotFoundException) {
-        Toast.makeText(context, "No dialer application found on device", Toast.LENGTH_SHORT).show()
-    } catch (e: Exception) {
-        Toast.makeText(context, "Unable to open dialer: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
     }
 }
 
@@ -373,6 +390,11 @@ fun NotificationPermissionCard(
 @Composable
 fun FcmTokenCard(
     tokenState: TokenUiState,
+    deviceName: String,
+    deviceNameInput: String,
+    registrationMessage: String,
+    onDeviceNameChange: (String) -> Unit,
+    onSaveDeviceName: () -> Unit,
     onCopyToken: (String) -> Unit,
     onRefreshToken: () -> Unit
 ) {
@@ -390,6 +412,26 @@ fun FcmTokenCard(
                 text = "FCM Registration Token",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
+            )
+
+            OutlinedTextField(
+                value = deviceNameInput,
+                onValueChange = onDeviceNameChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Friendly device name") },
+                supportingText = { Text("Current: $deviceName") }
+            )
+            Button(
+                onClick = onSaveDeviceName,
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Text("Save device name")
+            }
+            Text(
+                text = registrationMessage,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             when (tokenState) {

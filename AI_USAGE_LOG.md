@@ -513,3 +513,164 @@ The AI tool used was OpenAI Codex in the local repository workspace. PowerShell 
 - Place the Firebase Android `google-services.json` locally, build/install the app, grant notification permission, and copy the current FCM registration token into the backend’s local `.env`.
 - Run the documented foreground/background CRM-to-device manual flow if fresh end-to-end evidence is required. Backend success alone must not be reported as device receipt.
 - Do not stage or commit the generated/local credential files. Review the existing tracked dependency/build content before any GitHub publication or history cleanup.
+
+## Session: Point 2 Android Acknowledgement and Request History
+
+**Date**: October 16, 2026
+
+### 1. Prompt and Purpose
+
+The user approved implementation of Point 2 of the LeadZam assessment improvements: assign a unique request ID to each CRM call request, include it in FCM, keep bounded in-memory backend history, accept validated Android acknowledgement events, and display confirmed status/history in the dashboard. The scope explicitly excluded databases, authentication, automatic calling, dependency upgrades, credential changes, Git operations, and claims that a call was completed.
+
+OpenAI Codex used the local workspace tools and PowerShell for inspection and verification. No real environment file, Firebase service-account JSON, Android Firebase configuration, FCM token, or credential value was printed or modified.
+
+### 2. Files Changed
+
+Backend:
+
+- Added `backend/requestStore.js` for UUID request creation, bounded in-memory history, transition validation, and idempotent acknowledgements.
+- Updated `backend/index.js` with request IDs in FCM payloads, failed-request recording, `GET /api/requests`, and `POST /api/requests/:requestId/ack`.
+- Extended `backend/test/api.test.js` for request creation, payload IDs, configuration/send failures, history, unknown IDs, ordering, and duplicate acknowledgements.
+
+Android:
+
+- Updated `CallRequest.kt`, `CallRequestManager.kt`, `MyFirebaseMessagingService.kt`, `NotificationHelper.kt`, `MainActivity.kt`, `AndroidManifest.xml`, and `app/build.gradle.kts`.
+- Added `CallRequestAcknowledgementClient.kt`, `CallRequestActionHandler.kt`, `CallRequestActionReceiver.kt`, and `CallRequestTest.kt`.
+- Added request-specific notification IDs and PendingIntents, explicit Call and Dismiss actions, acknowledgement calls after valid processing or successful `ACTION_DIAL`, and duplicate dialer-launch protection.
+- Added a local configurable Android backend URL. The emulator default is `http://10.0.2.2:3000`; physical-device builds can override it with `-PleadzamBackendUrl=...`.
+
+Dashboard and documentation:
+
+- Updated `web-dashboard/src/api.ts`, `web-dashboard/src/types.ts`, `web-dashboard/src/App.tsx`, and `web-dashboard/src/App.css` for typed request history, polling, lifecycle statuses, and error handling.
+- Updated `README.md`, `backend/README.md`, and `web-dashboard/README.md` with the new API, status meanings, local URL configuration, in-memory reset limitation, and manual verification steps.
+
+### 3. Implementation Decisions and Scope
+
+- `accepted` means Firebase accepted the message for sending.
+- `received` means Android parsed and processed the valid request.
+- `dialer_opened` means `ACTION_DIAL` launch returned successfully; it does not mean a call was completed.
+- `dismissed` is sent only by the explicit Android Dismiss action or in-app Dismiss button. Swiping a notification away is not treated as dismissal.
+- Duplicate acknowledgements of the current status are idempotent. Unknown request IDs and invalid or out-of-order transitions are rejected.
+- Android marks a request as dialer-launched before sending the acknowledgement, so an acknowledgement network failure cannot open the dialer a second time.
+- History is intentionally limited and in memory; restarting the backend clears it.
+- No automatic token registration, database, login, production infrastructure, or new third-party dependency was added.
+
+### 4. Commands and Actual Results
+
+- `cd D:\Projects\LeadZam\backend; npm test`: **PASS** — 12 tests passed, 0 failed.
+- `cd D:\Projects\LeadZam\web-dashboard; npm run typecheck`: **PASS**.
+- `cd D:\Projects\LeadZam\web-dashboard; npm run build`: **PASS**.
+- `cd D:\Projects\LeadZam\web-dashboard; npm run lint`: **PASS**.
+- `cd D:\Projects\LeadZam\android-app; .\gradlew.bat app:assembleDebug app:testDebugUnitTest` with Java 21: **PASS**.
+- `cd D:\Projects\LeadZam\android-app; .\gradlew.bat app:connectedDebugAndroidTest` with Java 21: **PASS** on `Pixel_9a(AVD) - 17`.
+
+### 5. Remaining Limitations and Manual Verification
+
+- No dashboard test framework exists in the current project, so dashboard behavior was verified through typecheck, build, lint, and code review rather than added browser automation.
+- A live backend send was attempted with the existing local configuration. Firebase returned `messaging/registration-token-not-registered`, so the local `FCM_TOKEN` is stale or no longer registered. The local `.env` and credentials were not modified. A fresh manual Point 2 flow remains to be verified after copying the current Android token locally: dashboard Call, Android foreground/background receipt, explicit notification Call/Dismiss actions, backend acknowledgement responses, polling updates, and native dialer prefill.
+- No status claims that a phone call was completed. No live-device acknowledgement or dialer result is claimed from automated build/tests alone.
+
+## Session: Point 3 Device Names and Basic Multi-Device Handling
+
+### 1. Prompt and Purpose
+
+The user approved implementation of Point 3: add friendly Android device names, keep device-to-token associations in memory, allow dashboard requests to target a selected registered device, preserve the existing single-device fallback, handle stale devices clearly, and retain the Point 2 acknowledgement/status behavior. The scope excluded databases, authentication, production registration infrastructure, automatic calling, dependency upgrades, and Git operations.
+
+### 2. AI Tools Used
+
+OpenAI Codex used the local workspace tools, PowerShell inspection, `apply_patch` for edits, Node tests, TypeScript/Vite checks, and the Android Gradle wrapper. No real environment file, Firebase service-account JSON, FCM token value, or credential value was printed or modified.
+
+### 3. Files and Features Changed
+
+- Added `backend/deviceStore.js` for bounded-scope in-memory device registration, default-device selection, safe metadata, and availability tracking.
+- Updated `backend/index.js` with `POST /api/devices/register`, `GET /api/devices`, optional `deviceId` targeting for `POST /api/dial`, request-history device metadata, and stale-token classification.
+- Updated `backend/requestStore.js` and `backend/test/api.test.js` for device metadata, safe registration responses, selected-device routing, and stale-device behavior.
+- Added Android `DeviceIdentityStore.kt` and `DeviceRegistrationClient.kt`. The app persists a local device ID, lets the user save a friendly device name, registers the current token on startup/token refresh, and keeps registration responses token-free.
+- Updated `MainActivity.kt` and `MyFirebaseMessagingService.kt` without changing FCM message handling, acknowledgement transitions, notification actions, or `ACTION_DIAL` behavior.
+- Updated dashboard API/types/UI/CSS to load safe device metadata, select a target device, show availability, send an optional `deviceId`, and display device names in request history.
+- Updated `README.md`, `backend/README.md`, and `web-dashboard/README.md` with registration, fallback, targeting, stale-device, reset, and security behavior.
+
+### 4. Implementation Decisions and Scope
+
+- The existing `FCM_TOKEN` remains the fallback when no Android device has registered.
+- The first registered device is the in-memory default when no explicit target is selected.
+- Device registration responses and dashboard device/history endpoints never return FCM registration tokens.
+- Firebase unregistered/invalid-token errors mark the selected registered device unavailable and return a dashboard-safe `410 device_unavailable` response.
+- Device registrations and request history reset when the backend restarts.
+- Existing `accepted`, `received`, `dialer_opened`, `dismissed`, and `failed` acknowledgement semantics remain unchanged. No automatic phone call or call-completed status was added.
+
+### 5. Commands and Actual Results
+
+- `cd D:\Projects\LeadZam\backend; node --check index.js; node --check deviceStore.js`: **PASS**.
+- `cd D:\Projects\LeadZam\backend; npm test`: **PASS** — 15 tests passed, 0 failed.
+- `cd D:\Projects\LeadZam\web-dashboard; npm run typecheck`: **PASS**.
+- `cd D:\Projects\LeadZam\web-dashboard; npm run build`: **PASS**.
+- `cd D:\Projects\LeadZam\web-dashboard; npm run lint`: **PASS**.
+- Android host build/unit verification with Java 21: **PASS** — `app:assembleDebug app:testDebugUnitTest`.
+
+### 6. Remaining Limitations and Manual Verification
+
+- Connected Android verification after the Point 3 changes passed on the configured `Pixel_9a(AVD) - 17` emulator. Live device registration and full FCM delivery still require manual verification.
+- A fresh FCM token and running backend are needed to manually verify Android registration, dashboard device selection, foreground/background delivery, acknowledgements, explicit notification actions, and native dialer prefill.
+- The local registration endpoint has no authentication and is intentionally assessment-only infrastructure.
+- No dashboard browser test framework exists; dashboard behavior was verified through typecheck, build, lint, and code review.
+
+## Session: Point 4 Android Reliability Tests
+
+### 1. Prompt and Purpose
+
+The user requested Android reliability tests only for the existing Point 2/3 implementation: stable device identity and friendly-name validation, FCM request parsing, request-specific notification action extras, acknowledgement request construction and safe failure handling, and protection against a second dialer launch after acknowledgement failure. Backend and dashboard files were intentionally left unchanged.
+
+### 2. Files Changed
+
+- Added `CallRequestAcknowledgementProtocol.kt` to keep acknowledgement URL/body construction and safe response confirmation testable.
+- Added `CallRequestActionIntentFactory.kt` so notification action extras are constructed in one testable unit.
+- Updated `CallRequestAcknowledgementClient.kt` and `NotificationHelper.kt` to use those units without changing the acknowledgement or notification contract.
+- Expanded `CallRequestTest.kt` for malformed payload types, invalid acknowledgement short-circuiting, acknowledgement sequencing, and duplicate dialer-launch protection.
+- Added connected tests `DeviceIdentityStoreTest.kt`, `CallRequestActionIntentTest.kt`, and `CallRequestProtocolTest.kt`.
+
+### 3. Verification
+
+- Initial host test run exposed Android-only test limitations: invalid-payload logging uses the Android `Log` stub, and platform JSON behavior is not available in local JVM tests. Those runtime-dependent assertions were moved to connected tests; this was not an application behavior failure.
+- `D:\Tools\java-21\bin\java.exe -jar gradle\\wrapper\\gradle-wrapper.jar app:assembleDebug app:testDebugUnitTest`: **PASS**.
+- `D:\Tools\java-21\bin\java.exe -jar gradle\\wrapper\\gradle-wrapper.jar app:connectedDebugAndroidTest`: **PASS** on `Pixel_9a(AVD) - 17`.
+
+### 4. Remaining Limitations
+
+- No live FCM delivery, notification tap, explicit Dismiss, swipe behavior, acknowledgement network outage, or native dialer verification was performed in this test-only step.
+- No credentials or actual FCM registration tokens were read, printed, modified, or added to tests.
+
+## Session: Point 5 Focused Retry and Error Handling Improvements
+
+### 1. Prompt and Purpose
+
+The user approved implementation of focused Point 5 reliability improvements: separate transient and permanent failures, prevent duplicate call requests and dialer launches, recover Android registration and acknowledgement failures safely, preserve confirmed dashboard history, and provide a safe same-device retry path without adding a database, authentication, automatic calling, or production infrastructure.
+
+### 2. AI Tools Used
+
+OpenAI Codex used local PowerShell inspection, `apply_patch`, the existing Node test runner/Supertest, the existing Android Gradle wrapper command, and the existing Vite/TypeScript/ESLint commands. No credentials, service-account contents, or FCM token values were read or printed.
+
+### 3. Files and Features Changed
+
+- Updated `backend/index.js` with safe FCM failure classification, transient/permanent/ambiguous response metadata, optional `clientRequestId` validation, and idempotent request replay behavior.
+- Updated `backend/requestStore.js` with private in-memory client-request-key lookup that is not returned in request history.
+- Updated `backend/test/api.test.js` with classification, duplicate-send, device-target conflict, and transient-failure tests.
+- Added `android-app/app/src/main/java/com/example/leadzam/fcm/NetworkRetryPolicy.kt` and applied a maximum-one-retry policy to `CallRequestAcknowledgementClient.kt` and `DeviceRegistrationClient.kt` for transient transport/HTTP failures only.
+- Extended `android-app/app/src/test/java/com/example/leadzam/CallRequestTest.kt` with retry-limit and HTTP-status tests.
+- Updated `web-dashboard/src/api.ts`, `web-dashboard/src/types.ts`, and `web-dashboard/src/App.tsx` with safe error metadata, same-device retry keys, and actionable retry messaging.
+- Updated the root, backend, and dashboard README files with retry/idempotency behavior and limitations.
+
+### 4. Commands and Actual Results
+
+- `cd D:\Projects\LeadZam\backend; npm test`: **PASS** — 26 tests passed, 0 failed.
+- `cd D:\Projects\LeadZam\web-dashboard; npm run typecheck`: **PASS**.
+- `cd D:\Projects\LeadZam\web-dashboard; npm run build`: **PASS**.
+- `cd D:\Projects\LeadZam\web-dashboard; npm run lint`: **PASS**.
+- `cd D:\Projects\LeadZam\android-app; .\gradlew.bat testDebugUnitTest assembleDebug`: **BLOCKED BEFORE COMPILATION** — the environment has no `JAVA_HOME` and no `java` executable on `PATH`.
+
+### 5. Remaining Limitations
+
+- Android retry behavior was added and unit-test code was updated, but this Point 5 Android build/test run remains unverified until a JDK is made available. No dependency or JDK installation was performed.
+- No live Firebase delivery, notification action, acknowledgement, or dialer verification was performed in this session.
+- Dashboard browser interaction and timeout/replay behavior still require manual browser/backend verification. The retry key is intentionally in-memory and is not a database or durable queue.
+- No credential or FCM token values were exposed, modified, staged, committed, or pushed.

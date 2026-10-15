@@ -2,6 +2,7 @@ package com.example.leadzam.fcm
 
 import android.util.Log
 import com.example.leadzam.model.CallRequestParser
+import com.example.leadzam.model.CallRequestStatus
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 
@@ -11,6 +12,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         super.onNewToken(token)
         Log.d(TAG, "Refreshed token length: ${token.length}")
         FcmTokenManager.onNewToken(token)
+        DeviceRegistrationClient.register(applicationContext, token)
     }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
@@ -24,6 +26,10 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             if (callRequest != null) {
                 Log.d(TAG, "Received valid dial_request for ${callRequest.phoneNumber}")
                 CallRequestManager.setActiveCallRequest(callRequest)
+                CallRequestAcknowledgementClient.acknowledge(
+                    callRequest.requestId,
+                    CallRequestStatus.RECEIVED
+                )
                 NotificationHelper.showCallRequestNotification(applicationContext, callRequest)
                 return
             }

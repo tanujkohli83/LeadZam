@@ -4,6 +4,9 @@ plugins {
     id("com.google.gms.google-services")
 }
 
+val leadzamBackendUrl =
+    project.findProperty("leadzamBackendUrl")?.toString() ?: "http://10.0.2.2:3000"
+
 android {
     namespace = "com.example.leadzam"
     compileSdk {
@@ -16,6 +19,8 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
+
+        buildConfigField("String", "BACKEND_BASE_URL", "\"$leadzamBackendUrl\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -33,6 +38,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

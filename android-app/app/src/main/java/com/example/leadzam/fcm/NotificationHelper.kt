@@ -6,18 +6,21 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.leadzam.MainActivity
 import com.example.leadzam.model.CallRequest
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 object NotificationHelper {
     private const val TAG = "NotificationHelper"
     const val CHANNEL_ID = "fcm_test_channel"
     private const val CHANNEL_NAME = "LeadZam Call Requests & Notifications"
     private const val CHANNEL_DESC = "Notifications for incoming call requests and FCM messages"
+    private val notificationIds = ConcurrentHashMap<String, Int>()
+    private val nextNotificationId = AtomicInteger(1_000)
 
     fun createNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -66,15 +69,15 @@ object NotificationHelper {
     fun showCallRequestNotification(context: Context, callRequest: CallRequest) {
         createNotificationChannel(context)
 
-        // Unique notification ID based on phone number hash code
-        val notificationId = (callRequest.phoneNumber.hashCode() and 0x7FFFFFFF)
+        val notificationId = notificationIdFor(callRequest)
 
         // Intent to bring up MainActivity when clicking notification body
         val mainIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            putExtra("EXTRA_PHONE_NUMBER", callRequest.phoneNumber)
-            putExtra("EXTRA_CONTACT_NAME", callRequest.contactName)
-            putExtra("EXTRA_TYPE", callRequest.type)
+            putExtra(CallRequestActionHandler.EXTRA_REQUEST_ID, callRequest.requestId)
+            putExtra(CallRequestActionHandler.EXTRA_PHONE_NUMBER, callRequest.phoneNumber)
+            putExtra(CallRequestActionHandler.EXTRA_CONTACT_NAME, callRequest.contactName)
+            putExtra(CallRequestActionHandler.EXTRA_TYPE, callRequest.type)
         }
         val mainPendingIntent = PendingIntent.getActivity(
             context,
@@ -83,15 +86,19 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Intent to launch ACTION_DIAL directly when user taps the "Call" action button
-        val dialIntent = Intent(Intent.ACTION_DIAL).apply {
-            data = Uri.parse("tel:${callRequest.phoneNumber}")
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        }
-        val dialPendingIntent = PendingIntent.getActivity(
+        val callActionIntent = CallRequestActionIntentFactory.callIntent(context, callRequest)
+        val callPendingIntent = PendingIntent.getBroadcast(
             context,
-            notificationId + 1000,
-            dialIntent,
+            notificationId + 1,
+            callActionIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val dismissActionIntent = CallRequestActionIntentFactory.dismissIntent(context, callRequest)
+        val dismissPendingIntent = PendingIntent.getBroadcast(
+            context,
+            notificationId + 2,
+            dismissActionIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
@@ -111,7 +118,12 @@ object NotificationHelper {
             .addAction(
                 R.drawable.ic_menu_call,
                 "Call",
-                dialPendingIntent
+                callPendingIntent
+            )
+            .addAction(
+                R.drawable.ic_menu_close_clear_cancel,
+                "Dismiss",
+                dismissPendingIntent
             )
 
         val notificationManager =
@@ -123,5 +135,13 @@ object NotificationHelper {
         } catch (e: Exception) {
             Log.e(TAG, "Failed to display call request notification", e)
         }
+    }
+
+    private fun notificationIdFor(callRequest: CallRequest): Int {
+        val requestId = callRequest.requestId
+        if (requestId.isNullOrBlank()) {
+            return callRequest.phoneNumber.hashCode() and 0x7FFFFFFF
+        }
+        return notificationIds.getOrPut(requestId) { nextNotificationId.getAndIncrement() }
     }
 }

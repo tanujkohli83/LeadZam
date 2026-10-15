@@ -5,6 +5,7 @@
   --surface: #ffffff;
   --surface-soft: #f8fafb;
   --line: #e4eaed;
+  --line-strong: #ccd8dc;
   --teal: #147d70;
   --teal-dark: #0d5e55;
   --teal-soft: #e6f5f1;
@@ -365,6 +366,57 @@ h2 {
   margin-bottom: 17px;
 }
 
+.device-toolbar {
+  align-items: center;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: grid;
+  gap: 8px 12px;
+  grid-template-columns: auto minmax(170px, 1fr) auto;
+  margin-bottom: 17px;
+  padding: 11px 12px;
+}
+
+.device-toolbar label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.device-toolbar select {
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  min-width: 0;
+  padding: 8px 10px;
+}
+
+.device-toolbar select:focus {
+  border-color: var(--teal);
+  outline: 3px solid rgba(39, 124, 113, 0.16);
+}
+
+.device-state {
+  color: var(--teal);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.device-state--unavailable,
+.device-error {
+  color: var(--coral);
+}
+
+.device-error {
+  font-size: 12px;
+  margin: -6px 0 14px;
+}
+
 .search-field {
   align-items: center;
   background: var(--surface-soft);
@@ -562,6 +614,17 @@ kbd {
   font-weight: 700;
 }
 
+.request-feedback--received,
+.request-feedback--dialer_opened {
+  color: var(--teal-dark);
+  font-weight: 700;
+}
+
+.request-feedback--dismissed {
+  color: var(--muted);
+}
+
+.request-feedback--failed,
 .request-feedback--error {
   color: #b45042;
 }
@@ -597,6 +660,19 @@ kbd {
 
 .call-button--accepted {
   background: var(--teal);
+}
+
+.call-button--received,
+.call-button--dialer_opened {
+  background: var(--teal);
+}
+
+.call-button--dismissed {
+  background: #748189;
+}
+
+.call-button--failed {
+  background: #a85144;
 }
 
 .call-button--sending {
@@ -741,6 +817,116 @@ kbd {
   color: var(--teal);
 }
 
+.request-history {
+  border-top: 1px solid var(--line);
+  margin-top: 24px;
+  padding-top: 20px;
+}
+
+.history-header {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.history-header h3 {
+  font-size: 16px;
+  margin: 2px 0 0;
+}
+
+.history-header button {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--teal-dark);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 750;
+  padding: 7px 9px;
+}
+
+.history-header button:hover {
+  border-color: var(--teal);
+}
+
+.history-list {
+  display: grid;
+  gap: 9px;
+  margin-top: 15px;
+}
+
+.history-item {
+  align-items: center;
+  background: #fbfcfc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  gap: 9px;
+  justify-content: space-between;
+  padding: 9px;
+}
+
+.history-item strong,
+.history-item small {
+  display: block;
+}
+
+.history-item strong {
+  font-size: 12px;
+}
+
+.history-item small {
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: 3px;
+}
+
+.history-status {
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 5px 7px;
+  white-space: nowrap;
+}
+
+.history-status--accepted,
+.history-status--received,
+.history-status--dialer_opened {
+  background: var(--teal-soft);
+  color: var(--teal-dark);
+}
+
+.history-status--dismissed,
+.history-status--sending {
+  background: #eef1f1;
+  color: var(--muted);
+}
+
+.history-status--failed {
+  background: #fff0eb;
+  color: #a85144;
+}
+
+.history-empty,
+.history-error,
+.history-note {
+  color: var(--muted);
+  display: block;
+  font-size: 11px;
+  line-height: 1.45;
+  margin: 12px 0 0;
+}
+
+.history-error {
+  color: #a85144;
+}
+
+.history-note {
+  color: var(--soft-muted);
+  margin-top: 14px;
+}
+
 .connection-banner {
   background: #fff3f0;
   border: 1px solid #f3d2cb;
@@ -826,7 +1012,8 @@ kbd {
   .workflow-copy,
   .workflow-steps,
   .workflow-note,
-  .workflow-link {
+  .workflow-link,
+  .request-history {
     grid-column: 1 / -1;
   }
 }
@@ -862,6 +1049,15 @@ kbd {
   .toolbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .device-toolbar {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .device-state {
+    text-align: left;
   }
 
   .filter-button {
