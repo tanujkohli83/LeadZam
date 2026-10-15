@@ -1,0 +1,36 @@
+# Node dependencies and local runtime files
+**/node_modules/
+**/.env
+**/.env.*
+!**/.env.example
+
+# IDE and generated build output
+**/.idea/
+**/.gradle/
+**/.kotlin/
+**/build/
+**/dist/
+**/coverage/
+**/local.properties
+
+# Firebase Admin/service-account credentials
+**/*service-account*.json
+**/*service_account*.json
+**/*firebase-adminsdk*.json
+**/serviceAccount*.json
+**/*credentials*.json
+**/google-services.json
+**/*.pem
+**/*.p12
+**/*.key
+**/*.pfx
+**/*.jks
+**/*.keystore
+**/*.crt
+**/*.cer
+**/*.der
+**/*signing*.properties
+**/*keystore*.properties
+
+# Common local output
+**/*.log
