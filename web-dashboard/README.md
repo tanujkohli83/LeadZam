@@ -1,16 +1,45 @@
-# React + Vite
+# LeadZam CRM Dashboard — Phase 5
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A small React, Vite, and TypeScript dashboard for the LeadZam click-to-call workflow. It uses mock leads and sends call requests to the local Phase 4 backend. Firebase credentials and Android FCM tokens stay on the backend.
 
-Currently, two official plugins are available:
+## Run locally on Windows PowerShell
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Install and configure the frontend:
 
-## React Compiler
+```powershell
+cd D:\Projects\LeadZam\web-dashboard
+npm install
+Copy-Item .env.example .env
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+The default `.env` value is:
 
-## Expanding the ESLint configuration
+```text
+VITE_API_BASE_URL=http://localhost:3000
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Start both projects in separate PowerShell windows:
+
+```powershell
+# Window 1 — backend
+cd D:\Projects\LeadZam\backend
+npm start
+
+# Window 2 — dashboard
+cd D:\Projects\LeadZam\web-dashboard
+npm run dev
+```
+
+The dashboard runs on the Vite URL shown in the terminal, normally `http://localhost:5173`. The backend runs on `http://localhost:3000` unless its `PORT` is changed. If the backend uses another port, update `VITE_API_BASE_URL` and restart Vite.
+
+## Verification
+
+```powershell
+npm run typecheck
+npm run build
+npm run lint
+```
+
+The dashboard checks `GET /health` on load, shows the connection state, and disables a lead's Call button while its request is in progress. A successful response is shown as “Request accepted for sending”; it does not claim that the Android device received the message.
+
+The lead list is intentionally mocked for the internship assessment. No database, authentication, deployment, or real CRM integration is included in this phase.
